@@ -7623,15 +7623,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	                ctx.fillStyle = this._fillGradient;
 	            }
 	            else if (hasFillPattern) {
-					console.log("4.......");
 	                ctx.fillStyle = getCanvasPattern.call(fill, ctx);
 	            }
 	            if (hasStrokeGradient) {
-					console.log("5.......");
 	                ctx.strokeStyle = this._strokeGradient;
 	            }
 	            else if (hasStrokePattern) {
-					console.log("6.......");
 	                ctx.strokeStyle = getCanvasPattern.call(stroke, ctx);
 	            }
 
@@ -14010,12 +14007,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this.repeat = repeat;
 
 	        // Can be cloned
-			this.type = 'pattern';
-					console.log("6....");
+	        this.type = 'pattern';
 	    };
 
 	    Pattern.prototype.getCanvasPattern = function (ctx) {
-			console.log("1.......");
 	        return ctx.createPattern(this.image, this.repeat || 'repeat');
 	    };
 
@@ -14481,7 +14476,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	        type: 'image',
 
 	        brush: function (ctx, prevEl) {
-				console.log("7.....");
 	            var style = this.style;
 	            var src = style.image;
 	            var image;
@@ -14490,17 +14484,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	            style.bind(ctx, this, prevEl);
 	            // style.image is a url string
 	            if (typeof src === 'string') {
-					image = this._image;
-									console.log("8......");
+	                image = this._image;
 	            }
 	            // style.image is an HTMLImageElement or HTMLCanvasElement or Canvas
 	            else {
-					image = src;
-									console.log("9......");
+	                image = src;
 	            }
 	            // FIXME Case create many images with src
 	            if (!image && src) {
-					console.log("10......");
 	                // Try get from global image cache
 	                var cachedImgObj = globalImageCache.get(src);
 	                if (!cachedImgObj) {
@@ -14509,8 +14500,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    image.onload = function () {
 	                        image.onload = null;
 	                        for (var i = 0; i < cachedImgObj.pending.length; i++) {
-								cachedImgObj.pending[i].dirty();
-															console.log("11......");
+	                            cachedImgObj.pending[i].dirty();
 	                        }
 	                    };
 	                    cachedImgObj = {
@@ -14519,8 +14509,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    };
 	                    image.src = src;
 	                    globalImageCache.put(src, cachedImgObj);
-						this._image = image;
-											console.log("12......");
+	                    this._image = image;
 	                    return;
 	                }
 	                else {
@@ -14535,7 +14524,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	            }
 
 	            if (image) {
-					console.log("13......");
 	                // 图片已经加载完成
 	                // if (image.nodeName.toUpperCase() == 'IMG') {
 	                //     if (!image.complete) {
@@ -14554,15 +14542,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	                var height = style.height;
 	                var aspect = image.width / image.height;
 	                if (width == null && height != null) {
-						// Keep image/height ratio
-											console.log("14......");
+	                    // Keep image/height ratio
 	                    width = height * aspect;
 	                }
 	                else if (height == null && width != null) {
 	                    height = width / aspect;
 	                }
 	                else if (width == null && height == null) {
-						console.log("15......");
 	                    width = image.width;
 	                    height = image.height;
 	                }
@@ -14571,7 +14557,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	                this.setTransform(ctx);
 
 	                if (style.sWidth && style.sHeight) {
-						console.log("16......");
 	                    var sx = style.sx || 0;
 	                    var sy = style.sy || 0;
 	                    ctx.drawImage(
@@ -14581,20 +14566,17 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    );
 	                }
 	                else if (style.sx && style.sy) {
-						console.log("17......");
 	                    var sx = style.sx;
 	                    var sy = style.sy;
 	                    var sWidth = width - sx;
 	                    var sHeight = height - sy;
 	                    ctx.drawImage(
-							
 	                        image,
 	                        sx, sy, sWidth, sHeight,
 	                        x, y, width, height
 	                    );
 	                }
 	                else {
-						console.log("18......");
 	                    ctx.drawImage(image, x, y, width, height);
 	                }
 
@@ -22166,7 +22148,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	                }
 	                // Pattern
 	                else if (clearColor.image) {
-						console.log("2.....");
 	                    clearColorGradientOrPattern = Pattern.prototype.getCanvasPattern.call(clearColor, ctx);
 	                }
 	                ctx.save();
@@ -26305,7 +26286,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	            var symbolPath;
 
 	            if (symbolType.indexOf('image://') === 0) {
-					console.log("8......");
 	                symbolPath = new graphic.Image({
 	                    style: {
 	                        image: symbolType.slice(8),
