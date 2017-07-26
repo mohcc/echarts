@@ -4,6 +4,8 @@ define(function (require) {
     var SymbolDraw = require('../helper/SymbolDraw');
     var LineDraw = require('../helper/LineDraw');
     var RoamController = require('../../component/helper/RoamController');
+    var roamHelper = require('../../component/helper/roamHelper');
+    var cursorHelper = require('../../component/helper/cursorHelper');
 
     var graphic = require('../../util/graphic');
     var adjustEdge = require('./adjustEdge');
@@ -25,14 +27,14 @@ define(function (require) {
             var lineDraw = new LineDraw();
             var group = this.group;
 
-            var controller = new RoamController(api.getZr(), group);
+            this._controller = new RoamController(api.getZr());
+            this._controllerHost = {target: group};
 
             group.add(symbolDraw.group);
             group.add(lineDraw.group);
 
             this._symbolDraw = symbolDraw;
             this._lineDraw = lineDraw;
-            this._controller = controller;
 
             this._firstRender = true;
         },
@@ -71,7 +73,7 @@ define(function (require) {
 
             this._updateNodeAndLinkScale();
 
-            this._updateController(seriesModel, api);
+            this._updateController(seriesModel, ecModel, api);
 
             clearTimeout(this._layoutTimeout);
             var forceLayout = seriesModel.forceLayout;
@@ -157,6 +159,7 @@ define(function (require) {
 
         dispose: function () {
             this._controller && this._controller.dispose();
+            this._controllerHost = {};
         },
 
         focusNodeAdjacency: function (seriesModel, ecModel, api, payload) {
@@ -254,14 +257,16 @@ define(function (require) {
             })();
         },
 
-        _updateController: function (seriesModel, api) {
+        _updateController: function (seriesModel, ecModel, api) {
             var controller = this._controller;
+            var controllerHost = this._controllerHost;
             var group = this.group;
 
-            controller.setContainsPoint(function (x, y) {
+            controller.setPointerChecker(function (e, x, y) {
                 var rect = group.getBoundingRect();
                 rect.applyTransform(group.transform);
-                return rect.contain(x, y);
+                return rect.contain(x, y)
+                    && !cursorHelper.onIrrelevantElement(e, api, seriesModel);
             });
 
             if (seriesModel.coordinateSystem.type !== 'view') {
@@ -269,14 +274,14 @@ define(function (require) {
                 return;
             }
             controller.enable(seriesModel.get('roam'));
-            controller.zoomLimit = seriesModel.get('scaleLimit');
-            // Update zoom from model
-            controller.zoom = seriesModel.coordinateSystem.getZoom();
+            controllerHost.zoomLimit = seriesModel.get('scaleLimit');
+            controllerHost.zoom = seriesModel.coordinateSystem.getZoom();
 
             controller
                 .off('pan')
                 .off('zoom')
                 .on('pan', function (dx, dy) {
+                    roamHelper.updateViewOnPan(controllerHost, dx, dy);
                     api.dispatchAction({
                         seriesId: seriesModel.id,
                         type: 'graphRoam',
@@ -285,6 +290,7 @@ define(function (require) {
                     });
                 })
                 .on('zoom', function (zoom, mouseX, mouseY) {
+                    roamHelper.updateViewOnZoom(controllerHost, zoom, mouseX, mouseY);
                     api.dispatchAction({
                         seriesId: seriesModel.id,
                         type: 'graphRoam',

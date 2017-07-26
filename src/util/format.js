@@ -5,9 +5,11 @@ define(function (require) {
     var textContain = require('zrender/contain/text');
 
     var formatUtil = {};
+
     /**
      * 每三位默认加,格式化
-     * @type {string|number} x
+     * @param {string|number} x
+     * @return {string}
      */
     formatUtil.addCommas = function (x) {
         if (isNaN(x)) {
@@ -109,6 +111,36 @@ define(function (require) {
         return tpl;
     };
 
+    /**
+     * simple Template formatter
+     *
+     * @param {string} tpl
+     * @param {Object} param
+     * @param {boolean} [encode=false]
+     * @return {string}
+     */
+    formatUtil.formatTplSimple = function (tpl, param, encode) {
+        zrUtil.each(param, function (value, key) {
+            tpl = tpl.replace(
+                '{' + key + '}',
+                encode ? encodeHTML(value) : value
+            );
+        });
+        return tpl;
+    };
+
+    /**
+     * @param {string} color
+     * @param {string} [extraCssText]
+     * @return {string}
+     */
+    formatUtil.getTooltipMarker = function (color, extraCssText) {
+        return color
+            ? '<span style="display:inline-block;margin-right:5px;'
+                + 'border-radius:10px;width:9px;height:9px;background-color:'
+                + formatUtil.encodeHTML(color) + ';' + (extraCssText || '') + '"></span>'
+            : '';
+    };
 
     /**
      * @param {string} str
@@ -123,9 +155,12 @@ define(function (require) {
      * ISO Date format
      * @param {string} tpl
      * @param {number} value
+     * @param {boolean} [isUTC=false] Default in local time.
+     *           see `module:echarts/scale/Time`
+     *           and `module:echarts/util/number#parseDate`.
      * @inner
      */
-    formatUtil.formatTime = function (tpl, value) {
+    formatUtil.formatTime = function (tpl, value, isUTC) {
         if (tpl === 'week'
             || tpl === 'month'
             || tpl === 'quarter'
@@ -136,12 +171,13 @@ define(function (require) {
         }
 
         var date = numberUtil.parseDate(value);
-        var y = date.getFullYear();
-        var M = date.getMonth() + 1;
-        var d = date.getDate();
-        var h = date.getHours();
-        var m = date.getMinutes();
-        var s = date.getSeconds();
+        var utc = isUTC ? 'UTC' : '';
+        var y = date['get' + utc + 'FullYear']();
+        var M = date['get' + utc + 'Month']() + 1;
+        var d = date['get' + utc + 'Date']();
+        var h = date['get' + utc + 'Hours']();
+        var m = date['get' + utc + 'Minutes']();
+        var s = date['get' + utc + 'Seconds']();
 
         tpl = tpl.replace('MM', s2d(M))
             .toLowerCase()

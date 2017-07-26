@@ -11,8 +11,19 @@ define(function(require) {
 
     var layout = {};
 
+    /**
+     * @public
+     */
     var LOCATION_PARAMS = layout.LOCATION_PARAMS = [
         'left', 'right', 'top', 'bottom', 'width', 'height'
+    ];
+
+    /**
+     * @public
+     */
+    var HV_NAMES = layout.HV_NAMES = [
+        ['width', 'left', 'right'],
+        ['height', 'top', 'bottom']
     ];
 
     function boxLayout(orient, group, gap, maxWidth, maxHeight) {
@@ -331,6 +342,15 @@ define(function(require) {
     };
 
     /**
+     * @param {Object} option Contains some of the properties in HV_NAMES.
+     * @param {number} hvIdx 0: horizontal; 1: vertical.
+     */
+    layout.sizeCalculable = function (option, hvIdx) {
+        return option[HV_NAMES[hvIdx][0]] != null
+            || (option[HV_NAMES[hvIdx][1]] != null && option[HV_NAMES[hvIdx][2]] != null);
+    };
+
+    /**
      * Consider Case:
      * When defulat option has {left: 0, width: 100}, and we set {right: 0}
      * through setOption or media query, using normal zrUtil.merge will cause
@@ -352,24 +372,26 @@ define(function(require) {
      * @param {Object} targetOption
      * @param {Object} newOption
      * @param {Object|string} [opt]
-     * @param {boolean} [opt.ignoreSize=false] Some component must has width and height.
+     * @param {boolean|Array.<boolean>} [opt.ignoreSize=false] Some component must has width and height.
      */
     layout.mergeLayoutParam = function (targetOption, newOption, opt) {
         !zrUtil.isObject(opt) && (opt = {});
-        var hNames = ['width', 'left', 'right']; // Order by priority.
-        var vNames = ['height', 'top', 'bottom']; // Order by priority.
-        var hResult = merge(hNames);
-        var vResult = merge(vNames);
 
-        copy(hNames, targetOption, hResult);
-        copy(vNames, targetOption, vResult);
+        var ignoreSize = opt.ignoreSize;
+        !zrUtil.isArray(ignoreSize) && (ignoreSize = [ignoreSize, ignoreSize]);
 
-        function merge(names) {
+        var hResult = merge(HV_NAMES[0], 0);
+        var vResult = merge(HV_NAMES[1], 1);
+
+        copy(HV_NAMES[0], targetOption, hResult);
+        copy(HV_NAMES[1], targetOption, vResult);
+
+        function merge(names, hvIdx) {
             var newParams = {};
             var newValueCount = 0;
             var merged = {};
             var mergedValueCount = 0;
-            var enoughParamNumber = opt.ignoreSize ? 1 : 2;
+            var enoughParamNumber = 2;
 
             each(names, function (name) {
                 merged[name] = targetOption[name];
@@ -381,6 +403,17 @@ define(function(require) {
                 hasValue(newParams, name) && newValueCount++;
                 hasValue(merged, name) && mergedValueCount++;
             });
+
+            if (ignoreSize[hvIdx]) {
+                // Only one of left/right is premitted to exist.
+                if (hasValue(newOption, names[1])) {
+                    merged[names[2]] = null;
+                }
+                else if (hasValue(newOption, names[2])) {
+                    merged[names[1]] = null;
+                }
+                return merged;
+            }
 
             // Case: newOption: {width: ..., right: ...},
             // or targetOption: {right: ...} and newOption: {width: ...},
@@ -397,7 +430,6 @@ define(function(require) {
             }
             else {
                 // Chose another param from targetOption by priority.
-                // When 'ignoreSize', enoughParamNumber is 1 and those will not happen.
                 for (var i = 0; i < names.length; i++) {
                     var name = names[i];
                     if (!hasProp(newParams, name) && hasProp(targetOption, name)) {

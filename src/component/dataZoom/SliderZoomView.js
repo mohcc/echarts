@@ -9,6 +9,8 @@ define(function (require) {
     var linearMap = numberUtil.linearMap;
     var layout = require('../../util/layout');
     var sliderMove = require('../helper/sliderMove');
+    var eventTool = require('zrender/core/event');
+
     var asc = numberUtil.asc;
     var bind = zrUtil.bind;
     // var mathMax = Math.max;
@@ -246,11 +248,12 @@ define(function (require) {
             return [0, this._size[0]];
         },
 
-        _renderBackground : function () {
+        _renderBackground: function () {
             var dataZoomModel = this.dataZoomModel;
             var size = this._size;
+            var barGroup = this._displayables.barGroup;
 
-            this._displayables.barGroup.add(new Rect({
+            barGroup.add(new Rect({
                 silent: true,
                 shape: {
                     x: 0, y: 0, width: size[0], height: size[1]
@@ -259,6 +262,18 @@ define(function (require) {
                     fill: dataZoomModel.get('backgroundColor')
                 },
                 z2: -40
+            }));
+
+            // Click panel, over shadow, below handles.
+            barGroup.add(new Rect({
+                shape: {
+                    x: 0, y: 0, width: size[0], height: size[1]
+                },
+                style: {
+                    fill: 'transparent'
+                },
+                z2: 0,
+                onclick: zrUtil.bind(this._onClickPanelClick, this)
             }));
         },
 
@@ -415,6 +430,10 @@ define(function (require) {
                 draggable: true,
                 cursor: 'move',
                 drift: bind(this._onDragMove, this, 'all'),
+                onmousemove: function (e) {
+                    // Fot mobile devicem, prevent screen slider on the button.
+                    eventTool.stop(e.event);
+                },
                 ondragstart: bind(this._showDataInfo, this, true),
                 ondragend: bind(this._onDragEnd, this),
                 onmouseover: bind(this._showDataInfo, this, true),
@@ -444,7 +463,7 @@ define(function (require) {
 
             var iconStr = dataZoomModel.get('handleIcon');
             each([0, 1], function (handleIndex) {
-                var path = graphic.makePath(iconStr, {
+                var iconOpt = {
                     style: {
                         strokeNoScale: true
                     },
@@ -452,15 +471,28 @@ define(function (require) {
                     cursor: this._orient === 'vertical' ? 'ns-resize' : 'ew-resize',
                     draggable: true,
                     drift: bind(this._onDragMove, this, handleIndex),
+                    onmousemove: function (e) {
+                        // Fot mobile devicem, prevent screen slider on the button.
+                        eventTool.stop(e.event);
+                    },
                     ondragend: bind(this._onDragEnd, this),
                     onmouseover: bind(this._showDataInfo, this, true),
                     onmouseout: bind(this._showDataInfo, this, false)
-                }, {
-                    x: -0.5,
-                    y: 0,
-                    width: 1,
-                    height: 1
-                }, 'center');
+                };
+                var iconStyle = {x: -1, y: 0, width: 2, height: 2};
+
+                var path = iconStr.indexOf('image://') === 0
+                    ? (
+                        iconStyle.image = iconStr.slice(8),
+                        iconOpt.style = iconStyle,
+                        new graphic.Image(iconOpt)
+                    )
+                    : graphic.makePath(
+                        iconStr.replace('path://', ''),
+                        iconOpt,
+                        iconStyle,
+                        'center'
+                    );
 
                 var bRect = path.getBoundingRect();
                 this._handleHeight = numberUtil.parsePercent(dataZoomModel.get('handleSize'), this._size[1]);
@@ -510,25 +542,29 @@ define(function (require) {
         /**
          * @private
          * @param {(number|string)} handleIndex 0 or 1 or 'all'
-         * @param {number} dx
-         * @param {number} dy
+         * @param {number} delta
          */
         _updateInterval: function (handleIndex, delta) {
+            var dataZoomModel = this.dataZoomModel;
             var handleEnds = this._handleEnds;
             var viewExtend = this._getViewExtent();
+            var minMaxSpan = dataZoomModel.findRepresentativeAxisProxy().getMinMaxSpan();
+            var percentExtent = [0, 100];
 
             sliderMove(
                 delta,
                 handleEnds,
                 viewExtend,
-                (handleIndex === 'all' || this.dataZoomModel.get('zoomLock'))
-                    ? 'rigid' : 'cross',
-                handleIndex
+                dataZoomModel.get('zoomLock') ? 'all' : handleIndex,
+                minMaxSpan.minSpan != null
+                    ? linearMap(minMaxSpan.minSpan, percentExtent, viewExtend, true) : null,
+                minMaxSpan.maxSpan != null
+                    ? linearMap(minMaxSpan.maxSpan, percentExtent, viewExtend, true) : null
             );
 
             this._range = asc([
-                linearMap(handleEnds[0], viewExtend, [0, 100], true),
-                linearMap(handleEnds[1], viewExtend, [0, 100], true)
+                linearMap(handleEnds[0], viewExtend, percentExtent, true),
+                linearMap(handleEnds[1], viewExtend, percentExtent, true)
             ]);
         },
 
@@ -546,7 +582,7 @@ define(function (require) {
                 var handle = displaybles.handles[handleIndex];
                 var handleHeight = this._handleHeight;
                 handle.attr({
-                    scale: [handleHeight, handleHeight],
+                    scale: [handleHeight / 2, handleHeight / 2],
                     position: [handleEnds[handleIndex], size[1] / 2 - handleHeight / 2]
                 });
             }, this);
@@ -672,7 +708,8 @@ define(function (require) {
             this._dragging = true;
 
             // Transform dx, dy to bar coordination.
-            var vertex = this._applyBarTransform([dx, dy], true);
+            var barTransform = this._displayables.barGroup.getLocalTransform();
+            var vertex = graphic.applyTransform([dx, dy], barTransform, true);
 
             this._updateInterval(handleIndex, vertex[0]);
 
@@ -691,6 +728,24 @@ define(function (require) {
             this._dispatchZoomAction();
         },
 
+        _onClickPanelClick: function (e) {
+            var size = this._size;
+            var localPoint = this._displayables.barGroup.transformCoordToLocal(e.offsetX, e.offsetY);
+
+            if (localPoint[0] < 0 || localPoint[0] > size[0]
+                || localPoint[1] < 0 || localPoint[1] > size[1]
+            ) {
+                return;
+            }
+
+            var handleEnds = this._handleEnds;
+            var center = (handleEnds[0] + handleEnds[1]) / 2;
+
+            this._updateInterval('all', localPoint[0] - center);
+            this._updateView();
+            this._dispatchZoomAction();
+        },
+
         /**
          * This action will be throttled.
          * @private
@@ -705,14 +760,6 @@ define(function (require) {
                 start: range[0],
                 end: range[1]
             });
-        },
-
-        /**
-         * @private
-         */
-        _applyBarTransform: function (vertex, inverse) {
-            var barTransform = this._displayables.barGroup.getLocalTransform();
-            return graphic.applyTransform(vertex, barTransform, inverse);
         },
 
         /**

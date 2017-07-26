@@ -42,6 +42,18 @@ define(function(require) {
                 && option.label.emphasis.show;
         },
 
+        // Overwrite
+        getDataParams: function (dataIndex) {
+            var data = this.getData();
+            var params = FunnelSeries.superCall(this, 'getDataParams', dataIndex);
+            var sum = data.getSum('value');
+            // Percent is 0 if sum is 0
+            params.percent = !sum ? 0 : +(data.get('value', dataIndex) / sum * 100).toFixed(2);
+
+            params.$vars.push('percent');
+            return params;
+        },
+
         defaultOption: {
             zlevel: 0,                  // 一级层叠
             z: 2,                       // 二级层叠

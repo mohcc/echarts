@@ -5,11 +5,16 @@ define(function(require) {
     var zrUtil = require('zrender/core/util');
 
     var pathTool = require('zrender/tool/path');
-    var round = Math.round;
     var Path = require('zrender/graphic/Path');
     var colorTool = require('zrender/tool/color');
     var matrix = require('zrender/core/matrix');
     var vector = require('zrender/core/vector');
+    var Transformable = require('zrender/mixin/Transformable');
+    var BoundingRect = require('zrender/core/BoundingRect');
+
+    var round = Math.round;
+    var mathMax = Math.max;
+    var mathMin = Math.min;
 
     var graphic = {};
 
@@ -43,7 +48,7 @@ define(function(require) {
 
     graphic.RadialGradient = require('zrender/graphic/RadialGradient');
 
-    graphic.BoundingRect = require('zrender/core/BoundingRect');
+    graphic.BoundingRect = BoundingRect;
 
     /**
      * Extend shape with parameters
@@ -349,7 +354,8 @@ define(function(require) {
     }
 
     /**
-     * Set hover style of element
+     * Set hover style of element.
+     * This method can be called repeatly without side-effects.
      * @param {module:zrender/Element} el
      * @param {Object} [hoverStyle]
      * @param {Object} [opt]
@@ -404,6 +410,17 @@ define(function(require) {
         });
     };
 
+    graphic.getFont = function (opt, ecModel) {
+        var gTextStyleModel = ecModel && ecModel.getModel('textStyle');
+        return [
+            // FIXME in node-canvas fontWeight is before fontStyle
+            opt.fontStyle || gTextStyleModel && gTextStyleModel.getShallow('fontStyle') || '',
+            opt.fontWeight || gTextStyleModel && gTextStyleModel.getShallow('fontWeight') || '',
+            (opt.fontSize || gTextStyleModel && gTextStyleModel.getShallow('fontSize') || 12) + 'px',
+            opt.fontFamily || gTextStyleModel && gTextStyleModel.getShallow('fontFamily') || 'sans-serif'
+        ].join(' ');
+    };
+
     function animateOrSetProps(isUpdate, el, props, animatableModel, dataIndex, cb) {
         if (typeof dataIndex === 'function') {
             cb = dataIndex;
@@ -433,9 +450,10 @@ define(function(require) {
 
             duration > 0
                 ? el.animateTo(props, duration, animationDelay || 0, animationEasing, cb)
-                : (el.attr(props), cb && cb());
+                : (el.stopAnimation(), el.attr(props), cb && cb());
         }
         else {
+            el.stopAnimation();
             el.attr(props);
             cb && cb();
         }
@@ -493,16 +511,22 @@ define(function(require) {
 
     /**
      * Apply transform to an vertex.
-     * @param {Array.<number>} vertex [x, y]
-     * @param {Array.<number>} transform Transform matrix: like [1, 0, 0, 1, 0, 0]
+     * @param {Array.<number>} target [x, y]
+     * @param {Array.<number>|TypedArray.<number>|Object} transform Can be:
+     *      + Transform matrix: like [1, 0, 0, 1, 0, 0]
+     *      + {position, rotation, scale}, the same as `zrender/Transformable`.
      * @param {boolean=} invert Whether use invert matrix.
      * @return {Array.<number>} [x, y]
      */
-    graphic.applyTransform = function (vertex, transform, invert) {
+    graphic.applyTransform = function (target, transform, invert) {
+        if (transform && !zrUtil.isArrayLike(transform)) {
+            transform = Transformable.getLocalTransform(transform);
+        }
+
         if (invert) {
             transform = matrix.invert([], transform);
         }
-        return vector.applyTransform([], vertex, transform);
+        return vector.applyTransform([], target, transform);
     };
 
     /**
@@ -532,7 +556,8 @@ define(function(require) {
     };
 
     /**
-     * Apply group transition animation from g1 to g2
+     * Apply group transition animation from g1 to g2.
+     * If no animatableModel, no animation.
      */
     graphic.groupTransition = function (g1, g2, animatableModel, cb) {
         if (!g1 || !g2) {
@@ -575,6 +600,44 @@ define(function(require) {
                 // }
             }
         });
+    };
+
+    /**
+     * @param {Array.<Array.<number>>} points Like: [[23, 44], [53, 66], ...]
+     * @param {Object} rect {x, y, width, height}
+     * @return {Array.<Array.<number>>} A new clipped points.
+     */
+    graphic.clipPointsByRect = function (points, rect) {
+        return zrUtil.map(points, function (point) {
+            var x = point[0];
+            x = mathMax(x, rect.x);
+            x = mathMin(x, rect.x + rect.width);
+            var y = point[1];
+            y = mathMax(y, rect.y);
+            y = mathMin(y, rect.y + rect.height);
+            return [x, y];
+        });
+    };
+
+    /**
+     * @param {Object} targetRect {x, y, width, height}
+     * @param {Object} rect {x, y, width, height}
+     * @return {Object} A new clipped rect. If rect size are negative, return undefined.
+     */
+    graphic.clipRectByRect = function (targetRect, rect) {
+        var x = mathMax(targetRect.x, rect.x);
+        var x2 = mathMin(targetRect.x + targetRect.width, rect.x + rect.width);
+        var y = mathMax(targetRect.y, rect.y);
+        var y2 = mathMin(targetRect.y + targetRect.height, rect.y + rect.height);
+
+        if (x2 >= x && y2 >= y) {
+            return {
+                x: x,
+                y: y,
+                width: x2 - x,
+                height: y2 - y
+            };
+        }
     };
 
     return graphic;
